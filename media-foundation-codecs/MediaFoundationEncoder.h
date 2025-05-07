@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "MediaFoundationEncoder.g.h"
+#include <fstream>
 
 namespace winrt::media_foundation_codecs::implementation
 {

@@ -59,6 +59,7 @@
     <iot:Capability Name="systemManagement"/>
     <Capability Name="internetClientServer"/>
     <Capability Name="privateNetworkClientServer"/>
+    <uap:Capability Name="musicLibrary"/>
     <DeviceCapability Name="webcam"/>
     <DeviceCapability Name="microphone"/>
     <DeviceCapability Name="lowLevel"/>

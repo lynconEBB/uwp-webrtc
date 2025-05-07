@@ -12,6 +12,7 @@ using Windows.Media.MediaProperties;
 using SIPSorceryMedia.Abstractions;
 using Windows.Devices.Enumeration;
 using System.Diagnostics;
+using Windows.Media;
 
 namespace uwp_webrtc
 {
@@ -28,9 +29,10 @@ namespace uwp_webrtc
         public string ID;
         public string Name;
     }
+
     class FrameRateMonitor
     {
-        private static long lastFrameTicks = 0;  // shared across threads
+        private static long lastFrameTicks = 0; // shared across threads
         private static readonly Stopwatch stopwatch = Stopwatch.StartNew();
 
         public static void OnFrameArrived()
@@ -45,33 +47,33 @@ namespace uwp_webrtc
             }
             else
             {
-               Debug.WriteLine("First frame received.");
+                Debug.WriteLine("First frame received.");
             }
         }
     }
 
-    public class WindowsVideoEndpoint: IVideoSource
+    public class WindowsVideoEndpoint : IVideoSource, IDisposable
     {
         private MediaCapture _mediaCapture;
         private MediaFrameReader _frameReader;
         private DateTime _lastFrameAt = DateTime.MinValue;
-        
+
         private SoftwareBitmap backBuffer;
         private bool isPaused;
         private bool isStarted = false;
-        
+
         public event EncodedSampleDelegate OnVideoSourceEncodedSample;
         public event RawVideoSampleDelegate OnVideoSourceRawSample;
         public event RawVideoSampleFasterDelegate OnVideoSourceRawSampleFaster;
         public event SourceErrorDelegate OnVideoSourceError;
-        
+
         private readonly MediaFoundationVideoEncoder _encoder;
 
         public WindowsVideoEndpoint()
         {
             _encoder = new MediaFoundationVideoEncoder();
         }
-        
+
         public async Task StartVideo()
         {
             if (isStarted)
@@ -80,7 +82,7 @@ namespace uwp_webrtc
             _mediaCapture = await CreateMediaCapture();
             _frameReader = await GetMediaFrameReader(_mediaCapture);
             _frameReader.FrameArrived += OnFrameArrived;
-            var status = await _frameReader.StartAsync();
+            await _frameReader.StartAsync();
         }
 
         public Task PauseVideo()
@@ -100,7 +102,7 @@ namespace uwp_webrtc
             _frameReader.Dispose();
             _mediaCapture.Dispose();
             _encoder.Dispose();
-            
+
             return Task.CompletedTask;
         }
 
@@ -139,11 +141,8 @@ namespace uwp_webrtc
 
         public bool IsVideoSourcePaused() => isPaused;
 
+
         private int _encoderInUse = 0;
-
-        private uint _rtpTimestampIncrement = 90000 / 5;
-        private uint _currentTimestamp = 0;
-
         private async void OnFrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
         {
             //FrameRateMonitor.OnFrameArrived();
@@ -151,110 +150,130 @@ namespace uwp_webrtc
             if (OnVideoSourceEncodedSample == null && OnVideoSourceRawSample == null)
                 return;
 
-            try
+            if (OnVideoSourceEncodedSample != null && Interlocked.CompareExchange(ref _encoderInUse, 1, 0) != 0)
             {
-                using (MediaFrameReference frameReference = sender.TryAcquireLatestFrame())
+                // Debug.WriteLine("Dropping frame because encoder is busy!");
+                return;
+            }
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            using (MediaFrameReference frameReference = sender.TryAcquireLatestFrame())
+            {
+                VideoMediaFrame videoMediaFrame = frameReference?.VideoMediaFrame;
+                SoftwareBitmap source = videoMediaFrame?.SoftwareBitmap;
+                if (source == null && videoMediaFrame != null && videoMediaFrame.Direct3DSurface != null)
                 {
-                    VideoMediaFrame videoMediaFrame = frameReference?.VideoMediaFrame;
-                    SoftwareBitmap source = videoMediaFrame?.SoftwareBitmap;
-                    if (source == null && videoMediaFrame != null)
-                        source = await SoftwareBitmap.CreateCopyFromSurfaceAsync(videoMediaFrame.GetVideoFrame().Direct3DSurface);
+                    source = await SoftwareBitmap.CreateCopyFromSurfaceAsync(videoMediaFrame.Direct3DSurface);
+                }
 
-                    if (source == null)
-                        return;
+                if (source == null)
+                    return;
 
-                    SoftwareBitmap oldBitmap = Interlocked.Exchange(ref backBuffer, source);
-                    BitmapBuffer bitmapBuffer = backBuffer.LockBuffer(BitmapBufferAccessMode.Read);
+                SoftwareBitmap oldBitmap = Interlocked.Exchange(ref backBuffer, source);
+                BitmapBuffer bitmapBuffer = backBuffer.LockBuffer(BitmapBufferAccessMode.Read);
 
-                    unsafe
+                unsafe
+                {
+                    using (IMemoryBufferReference reference = bitmapBuffer.CreateReference())
                     {
-                        using (IMemoryBufferReference reference = bitmapBuffer.CreateReference())
+                        byte* buffer;
+                        uint capacity;
+
+                        IntPtr unknown = Marshal.GetIUnknownForObject(reference);
+                        ((IMemoryBufferByteAccess)Marshal.GetObjectForIUnknown(unknown)).GetBuffer(out buffer,
+                            out capacity);
+                        byte[] numArray = new byte[(int)capacity];
+                        Marshal.Copy((IntPtr)buffer, numArray, 0, (int)capacity);
+
+                        if (OnVideoSourceRawSample != null)
                         {
-                            byte* buffer;
-                            uint capacity;
+                            uint durationMilliseconds = 0;
+                            if (_lastFrameAt != DateTime.MinValue)
+                                durationMilliseconds =
+                                    Convert.ToUInt32(DateTime.Now.Subtract(this._lastFrameAt).TotalMilliseconds);
+                            OnVideoSourceRawSample(durationMilliseconds, source.PixelWidth, source.PixelHeight,
+                                numArray, VideoPixelFormatsEnum.NV12);
+                        }
 
-                            IntPtr unknown = Marshal.GetIUnknownForObject(reference);
-                            ((IMemoryBufferByteAccess)Marshal.GetObjectForIUnknown(unknown)).GetBuffer(out buffer, out capacity);
-                            byte[] numArray = new byte[(int)capacity];
-                            Marshal.Copy((IntPtr)buffer, numArray, 0, (int)capacity);
-
-                            if (OnVideoSourceRawSample != null)
+                        if (OnVideoSourceEncodedSample != null)
+                        {
+                            lock (_encoder)
                             {
-                                uint durationMilliseconds = 0;
-                                if (_lastFrameAt != DateTime.MinValue)
-                                    durationMilliseconds = Convert.ToUInt32(DateTime.Now.Subtract(this._lastFrameAt).TotalMilliseconds);
-                                OnVideoSourceRawSample(durationMilliseconds, source.PixelWidth, source.PixelHeight,
-                                    numArray, VideoPixelFormatsEnum.NV12);
-                            }
+                                Stopwatch s = Stopwatch.StartNew();
+                                byte[] encodedSample = _encoder.EncodeVideo(640, 480, numArray,
+                                    VideoPixelFormatsEnum.NV12, VideoCodecsEnum.H264);
+                                s.Stop();
+                                Debug.WriteLine($"Time spent on encoding: {s.ElapsedMilliseconds} ms");
 
-                            if (OnVideoSourceEncodedSample != null)
-                            {
-                                lock (_encoder)
+                                if (encodedSample != null && encodedSample.Length > 0)
                                 {
-                                    Stopwatch stopwatch = Stopwatch.StartNew();
-                                    byte[] encodedSample = _encoder.EncodeVideo(640, 480, numArray, VideoPixelFormatsEnum.NV12,VideoCodecsEnum.H264);
-                                    stopwatch.Stop();
-                                    Debug.WriteLine($"Time spent on encoding: {stopwatch.ElapsedMilliseconds} ms");
-                                if (encodedSample != null)
-                                {
-                                    Stopwatch stopwatch2 = Stopwatch.StartNew();
-                                    OnVideoSourceEncodedSample(3000, encodedSample);
-                                    stopwatch2.Stop();
-                                    Debug.WriteLine($"Time spent on packaging: {stopwatch2.ElapsedMilliseconds} ms");
-                                }
+                                    Debug.WriteLine($"Encoded sample length: {encodedSample.Length}");
+                                    OnVideoSourceEncodedSample(90000 / 5, encodedSample);
                                 }
                             }
                         }
                     }
-
-                    bitmapBuffer.Dispose();
-                    backBuffer?.Dispose();
-                    oldBitmap?.Dispose();
                 }
 
-            } finally
+                bitmapBuffer.Dispose();
+                backBuffer?.Dispose();
+                oldBitmap?.Dispose();
+            }
+            
+            stopwatch.Stop();
+            Debug.WriteLine($"Time spent on Processing frame: {stopwatch.ElapsedMilliseconds} ms");
+            if (OnVideoSourceEncodedSample != null)
             {
-                if (OnVideoSourceEncodedSample != null)
-                {
-                }
+                Interlocked.Exchange(ref _encoderInUse, 0);
             }
         }
 
         public static async Task<List<VideoCaptureDeviceInfo>> GetVideoCatpureDevices()
         {
             DeviceInformationCollection allAsync = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-            return !(allAsync != (DeviceInformationCollection)null) ? (List<VideoCaptureDeviceInfo>)null : allAsync.Select<DeviceInformation, VideoCaptureDeviceInfo>((Func<DeviceInformation, VideoCaptureDeviceInfo>)(x => new VideoCaptureDeviceInfo()
-            {
-                ID = x.Id,
-                Name = x.Name
-            })).ToList<VideoCaptureDeviceInfo>();
+            return !(allAsync != (DeviceInformationCollection)null)
+                ? (List<VideoCaptureDeviceInfo>)null
+                : allAsync.Select<DeviceInformation, VideoCaptureDeviceInfo>(
+                    (Func<DeviceInformation, VideoCaptureDeviceInfo>)(x => new VideoCaptureDeviceInfo()
+                    {
+                        ID = x.Id,
+                        Name = x.Name
+                    })).ToList<VideoCaptureDeviceInfo>();
         }
 
         public static async Task ListDevicesAndFormats()
         {
             foreach (DeviceInformation vidCapDevice in await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture))
             {
-                MediaCaptureInitializationSettings mediaCaptureInitializationSettings = new MediaCaptureInitializationSettings()
-                {
-                    StreamingCaptureMode = StreamingCaptureMode.Video,
-                    SharingMode = MediaCaptureSharingMode.SharedReadOnly,
-                    VideoDeviceId = vidCapDevice.Id
-                };
+                MediaCaptureInitializationSettings mediaCaptureInitializationSettings =
+                    new MediaCaptureInitializationSettings()
+                    {
+                        StreamingCaptureMode = StreamingCaptureMode.Video,
+                        SharingMode = MediaCaptureSharingMode.SharedReadOnly,
+                        VideoDeviceId = vidCapDevice.Id
+                    };
 
                 Debug.WriteLine(vidCapDevice.Name + " ==============================");
                 MediaCapture mediaCapture = new MediaCapture();
                 await mediaCapture.InitializeAsync(mediaCaptureInitializationSettings);
-                foreach (List<MediaFrameFormat> mediaFrameFormatList in mediaCapture.FrameSources.Values.Select<MediaFrameSource, IReadOnlyList<MediaFrameFormat>>((Func<MediaFrameSource, IReadOnlyList<MediaFrameFormat>>)(x => x.SupportedFormats)).Select<IReadOnlyList<MediaFrameFormat>, List<MediaFrameFormat>>((Func<IReadOnlyList<MediaFrameFormat>, List<MediaFrameFormat>>)(y => y.ToList<MediaFrameFormat>())))
+                foreach (List<MediaFrameFormat> mediaFrameFormatList in mediaCapture.FrameSources.Values
+                             .Select<MediaFrameSource, IReadOnlyList<MediaFrameFormat>>(
+                                 (Func<MediaFrameSource, IReadOnlyList<MediaFrameFormat>>)(x => x.SupportedFormats))
+                             .Select<IReadOnlyList<MediaFrameFormat>, List<MediaFrameFormat>>(
+                                 (Func<IReadOnlyList<MediaFrameFormat>, List<MediaFrameFormat>>)(y =>
+                                     y.ToList<MediaFrameFormat>())))
                 {
                     foreach (MediaFrameFormat mediaFrameFormat in mediaFrameFormatList)
                     {
                         VideoMediaFrameFormat videoFormat = mediaFrameFormat.VideoFormat;
-                        float num = (float)(videoFormat.MediaFrameFormat.FrameRate.Numerator / videoFormat.MediaFrameFormat.FrameRate.Denominator);
-                        string str = videoFormat.MediaFrameFormat.Subtype == "{30323449-0000-0010-8000-00AA00389B71}" ? "I420" : videoFormat.MediaFrameFormat.Subtype;
+                        float num = videoFormat.MediaFrameFormat.FrameRate.Numerator /
+                                    videoFormat.MediaFrameFormat.FrameRate.Denominator;
+                        string str = videoFormat.MediaFrameFormat.Subtype == "{30323449-0000-0010-8000-00AA00389B71}"
+                            ? "I420"
+                            : videoFormat.MediaFrameFormat.Subtype;
                         Debug.WriteLine($"{videoFormat.Width}x{videoFormat.Height} - {num}fps - {str}");
                     }
                 }
-                mediaCapture = (MediaCapture)null;
             }
         }
 
@@ -267,15 +286,12 @@ namespace uwp_webrtc
                 MemoryPreference = MediaCaptureMemoryPreference.Auto,
             };
             MediaCapture mediaCapture = new MediaCapture();
-            mediaCapture.Failed += (sender, args) =>
-            {
-                Console.WriteLine("MediaCapture Failed: " + args.Message);
-            };
+            mediaCapture.Failed += (sender, args) => { Console.WriteLine("MediaCapture Failed: " + args.Message); };
             await mediaCapture.InitializeAsync(settings);
-                
+
             return mediaCapture;
         }
-        
+
         private async Task<MediaFrameReader> GetMediaFrameReader(MediaCapture mediaCapture)
         {
             MediaFrameSource colorSource = null;
@@ -294,10 +310,12 @@ namespace uwp_webrtc
                 return null;
 
             MediaFrameFormat preferredFormat = null;
-            foreach(var format in colorSource.SupportedFormats) {
+            foreach (var format in colorSource.SupportedFormats)
+            {
                 float framerate = format.FrameRate.Numerator / (float)format.FrameRate.Denominator;
-                if (framerate >= 28 && format.VideoFormat.Width == 640 && format.VideoFormat.Height == 480 && string.Compare(format.Subtype,
-                    MediaEncodingSubtypes.Nv12, StringComparison.OrdinalIgnoreCase) == 0)
+                if (framerate == 5 && format.VideoFormat.Width == 640 && format.VideoFormat.Height == 480 &&
+                    string.Compare(format.Subtype,
+                        MediaEncodingSubtypes.Nv12, StringComparison.OrdinalIgnoreCase) == 0)
                 {
                     preferredFormat = format;
                     break;
@@ -310,9 +328,13 @@ namespace uwp_webrtc
             await colorSource.SetFormatAsync(preferredFormat);
             var reader = await mediaCapture.CreateFrameReaderAsync(colorSource);
             reader.AcquisitionMode = MediaFrameReaderAcquisitionMode.Realtime;
-            
+
             return reader;
         }
 
+        public void Dispose()
+        {
+            _encoder.Dispose();
+        }
     }
 }

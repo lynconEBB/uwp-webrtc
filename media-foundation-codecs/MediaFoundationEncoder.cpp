@@ -7,6 +7,8 @@
 
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Graphics.Imaging.h>
+#include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Storage.Streams.h>
 #include <stdio.h>
 #include <tchar.h>
 #include <mfapi.h>
@@ -22,19 +24,66 @@
 
 namespace winrt::media_foundation_codecs::implementation
 {
+    using namespace Windows::Foundation;
+    using namespace Windows::Storage;
+    using namespace Windows::Storage::Streams;
+    
     static com_ptr<IMFTransform> transform;
     
+    static std::ofstream m_file;
+
+    IAsyncAction SaveBinaryFileAsync()
+    {
+        try
+        {
+            StorageFolder localFolder = ApplicationData::Current().LocalFolder();
+            StorageFile file = co_await localFolder.CreateFileAsync(L"output.h264",
+                CreationCollisionOption::ReplaceExisting);
+
+            IRandomAccessStream randomAccessStream = co_await file.OpenAsync(FileAccessMode::ReadWrite);
+            IOutputStream outputStream = randomAccessStream.GetOutputStreamAt(0);
+            DataWriter writer(outputStream);
+
+            // Example: Write some binary data
+            std::vector<uint8_t> binaryData = { /* your H.264 data here */ };
+            writer.WriteBytes(binaryData);
+
+            // Commit the DataWriter to the stream
+            co_await writer.StoreAsync();
+            co_await writer.FlushAsync();
+            writer.Close();
+        }
+        catch (winrt::hresult_error const& ex)
+        {
+            // Handle errors
+            winrt::hstring message = ex.message();
+            // Log or display error
+        }
+    }
+
+    IAsyncAction SaveWithStdOfstreamAsync()
+    {
+        StorageFolder localFolder = ApplicationData::Current().LocalFolder();
+
+        StorageFile file = co_await localFolder.CreateFileAsync(L"output.h264",
+            CreationCollisionOption::ReplaceExisting);
+
+        std::wstring filePath = file.Path().c_str();
+
+        m_file.open(filePath, std::ios::out | std::ios::binary);
+        if (m_file.is_open())
+        {
+            OutputDebugString(filePath.c_str());
+            OutputDebugString(L"File opened successfully\n");
+        }
+    }
     void MediaFoundationEncoder::Initialize()
     {
         try
         {
+            SaveWithStdOfstreamAsync();
+            
             check_hresult(MFStartup(MF_VERSION));
-
-            IMFActivate** active = nullptr;
-
-            MFT_REGISTER_TYPE_INFO inputType = {MFVideoFormat_NV12 };
-            MFT_REGISTER_TYPE_INFO outputType = { MFMediaType_Video, MFVideoFormat_H264 };
-            uint32_t count;
 
             check_hresult(CoCreateInstance(CLSID_MSH264EncoderMFT,
                 nullptr,
@@ -48,7 +97,7 @@ namespace winrt::media_foundation_codecs::implementation
             check_hresult(inputMediaType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12));
             check_hresult(inputMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
             check_hresult(MFSetAttributeSize(inputMediaType.get(), MF_MT_FRAME_SIZE, 640, 480));   // Set resolution
-            check_hresult(MFSetAttributeRatio(inputMediaType.get(), MF_MT_FRAME_RATE, 30, 1));       // Set FPS
+            check_hresult(MFSetAttributeRatio(inputMediaType.get(), MF_MT_FRAME_RATE, 5, 1));       // Set FPS
 
             com_ptr<IMFMediaType> outputMediaType;
             check_hresult(MFCreateMediaType(outputMediaType.put()));
@@ -57,7 +106,7 @@ namespace winrt::media_foundation_codecs::implementation
             check_hresult(outputMediaType->SetUINT32(MF_MT_AVG_BITRATE, 240000));
             check_hresult(outputMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
             check_hresult(MFSetAttributeSize(outputMediaType.get(), MF_MT_FRAME_SIZE, 640, 480));
-            check_hresult(MFSetAttributeRatio(outputMediaType.get(), MF_MT_FRAME_RATE, 30, 1));
+            check_hresult(MFSetAttributeRatio(outputMediaType.get(), MF_MT_FRAME_RATE, 5, 1));
             check_hresult(outputMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Main));
             check_hresult(outputMediaType->SetUINT32(MF_MT_MPEG2_LEVEL, 40));
 
@@ -74,24 +123,6 @@ namespace winrt::media_foundation_codecs::implementation
             check_hresult(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, NULL));
 
             com_ptr<ICodecAPI> codec = transform.as<ICodecAPI>();
-            if (codec) {
-                VARIANT var;
-                HRESULT hr = codec->GetValue(&CODECAPI_AVEncMPVGOPSize, &var);
-                if (SUCCEEDED(hr)) {
-                    std::wstringstream ss3;
-                    ss3 << "Valor: " << var.intVal << "\n";
-                    OutputDebugString(ss3.str().c_str());
-                }
-                var.intVal = 10;
-                hr = codec->SetValue(&CODECAPI_AVEncMPVGOPSize, &var);
-                hr = codec->GetValue(&CODECAPI_AVEncMPVGOPSize, &var);
-                if (SUCCEEDED(hr)) {
-                    std::wstringstream ss3;
-                    ss3 << "Valor: " << var.intVal << "\n";
-                    OutputDebugString(ss3.str().c_str());
-                }
-            }
-            
         } catch (hresult_error const& e)
         {
             std::wcout << e.message().c_str() << std::endl;    
@@ -103,6 +134,7 @@ namespace winrt::media_foundation_codecs::implementation
     {
         transform = nullptr;
         MFShutdown();
+        m_file.close();
     }
 
     HRESULT CreateSample(com_ptr<IMFSample>& sample, DWORD maxLenght)
@@ -146,13 +178,6 @@ namespace winrt::media_foundation_codecs::implementation
 
         if (transformResult == S_OK)
         {
-            //OutputDebugString(L"6 - Found data on output\n");
-            ss.clear();
-            ss.str(L"");
-            DWORD bufferCount;
-            outputDataBuffer.pSample->GetBufferCount(&bufferCount);
-            ss << "6 - Count of buffers = " << bufferCount << "\n";
-            //OutputDebugString(ss.str().c_str());
             decodeOutput.copy_to(&outputDataBuffer.pSample);
         }
         else if (transformResult == MF_E_TRANSFORM_NEED_MORE_INPUT) {
@@ -197,18 +222,14 @@ namespace winrt::media_foundation_codecs::implementation
 			check_hresult(sample->SetSampleTime(timestamp));
 			check_hresult(sample->SetSampleDuration(333333));
 
-            auto start = std::chrono::high_resolution_clock::now();
-
             //OutputDebugString(L"2 - Processing Input\n");
             transform->ProcessInput(0, sample.get(), 0);
 			
 			HRESULT encoderResult = S_OK;
 			std::vector<uint8_t> outputData;
 
-            int count = 0;
-			//while (encoderResult == S_OK)
-			//{
-                count++;
+			while (encoderResult == S_OK)
+			{
 				com_ptr<IMFSample> decodeOutput;
                 //OutputDebugString(L"3 - Processing Output\n");
 				encoderResult = ProcessOutput(decodeOutput);
@@ -217,43 +238,28 @@ namespace winrt::media_foundation_codecs::implementation
 				{
                     ss.clear();
                     ss.str(L"");
-					DWORD bufferCount;
-                    decodeOutput->GetBufferCount(&bufferCount);
-                    ss << "7 - Count do buffer: " << bufferCount << "\n";
-                    //OutputDebugString(ss.str().c_str());
-                    if (bufferCount > 1) {
-                        //OutputDebugString(L"Tem mais de 1 count \n");
-                    }
-                    for (int i = 0; i < bufferCount; i++) {
-						uint8_t* buffData = nullptr;
-						DWORD lenght = 0;
-                        com_ptr<IMFMediaBuffer> decodeBuffer;
-                        check_hresult(decodeOutput->GetBufferByIndex(i, decodeBuffer.put()));
-						check_hresult(decodeBuffer->Lock(&buffData, &lenght, nullptr));
-						outputData.insert(outputData.end(), buffData, buffData + lenght);
-						check_hresult(decodeBuffer->Unlock());
-                    }
+					uint8_t* buffData = nullptr;
+					DWORD lenght = 0;
+					com_ptr<IMFMediaBuffer> decodeBuffer;
+
+					check_hresult(decodeOutput->ConvertToContiguousBuffer(decodeBuffer.put()));
+					check_hresult(decodeBuffer->Lock(&buffData, nullptr, &lenght));
+					outputData.insert(outputData.end(), buffData, buffData + lenght);
+					ss.clear();
+					ss.str(L"");
+					ss << "Got " << lenght << " bytes From Process\n";
+				    OutputDebugString(ss.str().c_str());
+				    
+					check_hresult(decodeBuffer->Unlock());
 				}
-			//}
-
-			if (count > 1) {
-				//OutputDebugString(L"Tem mais de 1 count \n");
 			}
-
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-            ss.clear();
-            ss.str(L"");
-            ss << "Encoding frame took: " << duration.count() << " ms" << std::endl;
-            OutputDebugString(ss.str().c_str());
-
+            
 			return com_array<uint8_t>(outputData.begin(), outputData.end());
         } catch (hresult_error const& e)
         {
             std::wstringstream ss;
             ss << L"ERRRORRRRRR ==========: " << e.message().c_str() << "\n";
-            OutputDebugString(e.message().c_str());
+            OutputDebugString(ss.str().c_str());
             return com_array<uint8_t>();
         }
 

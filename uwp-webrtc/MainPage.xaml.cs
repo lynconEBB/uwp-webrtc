@@ -129,11 +129,7 @@ namespace uwp_webrtc
                     await endpoint.CloseVideo();
                 }
             };
-            pc.OnVideoFormatsNegotiated += Pc_OnVideoFormatsNegotiated;
-            pc.OnVideoFrameReceived += Pc_OnVideoFrameReceived;
-
-            new MediaStreamTrack(new VideoFormat(VideoCodecsEnum.H264, 96 /*0x60*/), MediaStreamStatusEnum.SendRecv);
-
+            
             MediaStreamTrack videoTrack = new MediaStreamTrack(endpoint.GetVideoSourceFormats(), MediaStreamStatusEnum.SendOnly);
             pc.addTrack(videoTrack);
             endpoint.OnVideoSourceEncodedSample += pc.SendVideo;
@@ -151,19 +147,6 @@ namespace uwp_webrtc
             {
                 pc.addIceCandidate(candidate);
             };
-        }
-
-        private void Pc_OnVideoFrameReceived(System.Net.IPEndPoint ip, uint timestamp, byte[] payload, VideoFormat format)
-        {
-            Debug.WriteLine("Received video in format " + format.ToString());
-        }
-
-        private void Pc_OnVideoFormatsNegotiated(List<VideoFormat> formats)
-        {
-            foreach (VideoFormat videoFormat in formats)
-            {
-
-            }
         }
     }
 }
