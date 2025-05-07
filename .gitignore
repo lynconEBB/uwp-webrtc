@@ -1,0 +1,10 @@
+﻿x64
+packages
+.vs
+.idea
+uwp-webrtc/.vs
+uwp-webrtc/bin
+uwp-webrtc/obj
+media-foundation-codecs/ARM64
+media-foundation-codecs/Generated Files
+media-foundation-codecs/x64
