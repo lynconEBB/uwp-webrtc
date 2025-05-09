@@ -17,7 +17,15 @@
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WindowsXamlEnableOverview>true</WindowsXamlEnableOverview>
-    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+    <PackageCertificateThumbprint>EF32EB8B71020605C19F3141FB35652828E87E2F</PackageCertificateThumbprint>
+    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+    <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
+    <GenerateTestArtifacts>True</GenerateTestArtifacts>
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+    <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -130,6 +138,7 @@
     <Compile Include="MediaFoundationVideoEncoder.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SignalingSocket.cs" />
+    <Compile Include="WindowsUtils.cs" />
     <Compile Include="WindowsVideoEndpoint.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -146,6 +155,7 @@
     <Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
+    <Content Include="webrtc-utils.dll" />
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -176,10 +186,9 @@
       <Project>{3e2de4bb-f9ac-9a23-ac61-966d9c8e4288}</Project>
       <Name>SIPSorcery</Name>
     </ProjectReference>
-    <ProjectReference Include="..\media-foundation-codecs\media-foundation-codecs.vcxproj">
-      <Project>{2dd512fd-c6a6-4844-a1bf-737325102ac2}</Project>
-      <Name>media-foundation-codecs</Name>
-    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="uwp-webrtc_TemporaryKey.pfx" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>

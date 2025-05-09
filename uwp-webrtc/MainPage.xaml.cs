@@ -52,7 +52,10 @@ namespace uwp_webrtc
         public MainPage()
         {
             InitializeComponent();
+            endpoint = new WindowsVideoEndpoint();
+            //endpoint.StartVideo();
 
+            /*
             bitmap = new WriteableBitmap(640, 480);
             ImageFrame.Source = bitmap;
 
@@ -63,6 +66,7 @@ namespace uwp_webrtc
             endpoint.OnVideoSourceRawSample += DisplayFrame;
 
             StartWebRTC();
+        */
         }
 
         private async void DisplayFrame(uint durationMilliseconds, int width, int height, byte[] sample, VideoPixelFormatsEnum pixelFormat)

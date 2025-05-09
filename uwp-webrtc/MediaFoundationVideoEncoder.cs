@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using media_foundation_codecs;
 using SIPSorceryMedia.Abstractions;
 
 namespace uwp_webrtc
@@ -15,23 +14,16 @@ namespace uwp_webrtc
         public List<VideoFormat> SupportedFormats => _supportedFormats;
         
         private bool _forceKeyFrame;
-        private MediaFoundationEncoder _nativeEncoder;
         
         public void ForceKeyFrame() => _forceKeyFrame = true;
 
         public MediaFoundationVideoEncoder()
         {
-            _nativeEncoder = new MediaFoundationEncoder();
-            _nativeEncoder.Initialize();
         }
         
         public byte[] EncodeVideo(int width, int height, byte[] sample, VideoPixelFormatsEnum pixelFormat, VideoCodecsEnum codec)
         {
-            lock (_nativeEncoder)
-            {
-                byte[] result = _nativeEncoder.ProcessFrame(sample, Stopwatch.GetTimestamp());
-                return result;
-            }
+            return null;
         }
 
         public IEnumerable<VideoSample> DecodeVideo(byte[] encodedSample, VideoPixelFormatsEnum pixelFormat, VideoCodecsEnum codec)
@@ -51,7 +43,6 @@ namespace uwp_webrtc
         
         public void Dispose()
         {
-            _nativeEncoder.Shutdown();
         }
     }
 }

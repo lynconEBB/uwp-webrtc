@@ -5,6 +5,6 @@ packages
 uwp-webrtc/.vs
 uwp-webrtc/bin
 uwp-webrtc/obj
-media-foundation-codecs/ARM64
-media-foundation-codecs/Generated Files
-media-foundation-codecs/x64
+webrtc-utils/Generated Files
+webrtc-utils/x64
+uwp-webrtc/webrtc-utils.dll

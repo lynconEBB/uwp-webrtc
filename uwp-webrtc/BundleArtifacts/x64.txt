@@ -1,0 +1,2 @@
+MainPackage=D:\uwp-webrtc\uwp-webrtc\bin\x64\Debug\uwp-webrtc_1.0.0.0_x64_Debug.msix
+SymbolPackage=D:\uwp-webrtc\uwp-webrtc\obj\x64\Debug\Symbols\uwp-webrtc_1.0.0.0_x64_Debug.appxsym

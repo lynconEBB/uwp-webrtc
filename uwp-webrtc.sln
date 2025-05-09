@@ -4,10 +4,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.12.35707.178
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "uwp-webrtc", "uwp-webrtc\uwp-webrtc.csproj", "{E4176E42-EB5B-4357-BA97-1E08C4B79208}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "media-foundation-codecs", "media-foundation-codecs\media-foundation-codecs.vcxproj", "{2DD512FD-C6A6-4844-A1BF-737325102AC2}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C640C27B-E980-4469-9586-97ECAD55A362} = {C640C27B-E980-4469-9586-97ECAD55A362}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SIPSorcery", "..\sipsorcery\src\SIPSorcery.csproj", "{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "webrtc-utils", "webrtc-utils\webrtc-utils.vcxproj", "{C640C27B-E980-4469-9586-97ECAD55A362}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,22 +48,6 @@ Global
 		{E4176E42-EB5B-4357-BA97-1E08C4B79208}.Release|x86.ActiveCfg = Release|x86
 		{E4176E42-EB5B-4357-BA97-1E08C4B79208}.Release|x86.Build.0 = Release|x86
 		{E4176E42-EB5B-4357-BA97-1E08C4B79208}.Release|x86.Deploy.0 = Release|x86
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|ARM.ActiveCfg = Debug|ARM
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|ARM.Build.0 = Debug|ARM
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|ARM64.ActiveCfg = Debug|ARM64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|ARM64.Build.0 = Debug|ARM64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|x64.ActiveCfg = Debug|x64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|x64.Build.0 = Debug|x64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|x86.ActiveCfg = Debug|Win32
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Debug|x86.Build.0 = Debug|Win32
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|ARM.ActiveCfg = Release|ARM
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|ARM.Build.0 = Release|ARM
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|ARM64.ActiveCfg = Release|ARM64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|ARM64.Build.0 = Release|ARM64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|x64.ActiveCfg = Release|x64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|x64.Build.0 = Release|x64
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|x86.ActiveCfg = Release|Win32
-		{2DD512FD-C6A6-4844-A1BF-737325102AC2}.Release|x86.Build.0 = Release|Win32
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Debug|ARM.ActiveCfg = Debug|Any CPU
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Debug|ARM.Build.0 = Debug|Any CPU
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Debug|ARM64.ActiveCfg = Debug|Any CPU
@@ -77,6 +64,22 @@ Global
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Release|x64.Build.0 = Release|Any CPU
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Release|x86.ActiveCfg = Release|Any CPU
 		{3E2DE4BB-F9AC-9A23-AC61-966D9C8E4288}.Release|x86.Build.0 = Release|Any CPU
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|ARM.ActiveCfg = Debug|ARM
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|ARM.Build.0 = Debug|ARM
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|ARM64.Build.0 = Debug|ARM64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|x64.ActiveCfg = Debug|x64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|x64.Build.0 = Debug|x64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|x86.ActiveCfg = Debug|Win32
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Debug|x86.Build.0 = Debug|Win32
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|ARM.ActiveCfg = Release|ARM
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|ARM.Build.0 = Release|ARM
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|ARM64.ActiveCfg = Release|ARM64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|ARM64.Build.0 = Release|ARM64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|x64.ActiveCfg = Release|x64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|x64.Build.0 = Release|x64
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|x86.ActiveCfg = Release|Win32
+		{C640C27B-E980-4469-9586-97ECAD55A362}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
